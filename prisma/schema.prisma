@@ -11,27 +11,31 @@ model User {
 }
 
 model Server {
-  id          String   @id @default(cuid())
-  ownerId     String
-  owner       User     @relation(fields:[ownerId], references:[id], onDelete:Cascade)
-  name        String
-  slug        String   @unique
-  version     String   @default("1.21.8")
-  type        String   @default("VANILLA")
-  ramMb       Int      @default(2048)
-  port        Int
-  status      String   @default("stopped")
-  motd        String   @default("A Minecraft Server")
-  maxPlayers  Int      @default(20)
-  gamemode    String   @default("survival")
-  difficulty  String   @default("normal")
-  hardcore    Boolean  @default(false)
-  pvp         Boolean  @default(true)
-  onlineMode  Boolean  @default(true)
-  whitelist   Boolean  @default(false)
+  id            String   @id @default(cuid())
+  ownerId       String
+  owner         User     @relation(fields:[ownerId], references:[id], onDelete:Cascade)
+  name          String
+  slug          String   @unique
+  provider      String   @default("local")
+  providerId    String?
+  version       String   @default("1.21.8")
+  type          String   @default("VANILLA")
+  ramMb         Int      @default(2048)
+  port          Int
+  status        String   @default("stopped")
+  motd          String   @default("A Minecraft Server")
+  maxPlayers    Int      @default(20)
+  gamemode      String   @default("survival")
+  difficulty    String   @default("normal")
+  hardcore      Boolean  @default(false)
+  pvp           Boolean  @default(true)
+  onlineMode    Boolean  @default(true)
+  whitelist     Boolean  @default(false)
   commandAliases Json?
-  createdAt   DateTime @default(now())
-  worlds      World[]
+  createdAt     DateTime @default(now())
+  worlds        World[]
+  @@index([ownerId])
+  @@index([providerId])
 }
 
 model World {
