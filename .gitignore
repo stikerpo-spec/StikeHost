@@ -1,0 +1,7 @@
+node_modules/
+data/*.json
+servers/*/world
+servers/*/*.jar
+servers/*/backups
+servers/*/plugins/*.jar
+servers/*/mods/*.jar
