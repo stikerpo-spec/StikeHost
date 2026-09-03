@@ -19,7 +19,7 @@ model Server {
   version     String   @default("1.21.8")
   type        String   @default("VANILLA")
   ramMb       Int      @default(2048)
-  port        Int      @unique
+  port        Int
   status      String   @default("stopped")
   motd        String   @default("A Minecraft Server")
   maxPlayers  Int      @default(20)
