@@ -1,54 +1,40 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../lib/db';
 import { getSession } from '../../../lib/auth';
-
-async function nextPort() {
-  for (let port = 25565; port <= 25999; port++) {
-    const used = await db.server.findUnique({ where: { port }, select: { id: true } });
-    if (!used) return port;
-  }
-  throw new Error('No free Minecraft ports available');
-}
+import { falix, falixConfigured, falixCreateInit } from '../../../lib/falix';
 
 export async function GET() {
-  const id = await getSession();
-  if (!id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  return NextResponse.json(await db.server.findMany({ where: { ownerId: id }, include: { worlds: true }, orderBy: { createdAt: 'desc' } }));
+  const ownerId = await getSession();
+  if (!ownerId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  return NextResponse.json(await db.server.findMany({ where: { ownerId }, include: { worlds: true }, orderBy: { createdAt: 'desc' } }));
 }
 
 export async function POST(req: Request) {
-  const id = await getSession();
-  if (!id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const ownerId = await getSession();
+  if (!ownerId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!falixConfigured()) return NextResponse.json({ error: 'Echtes Hosting ist noch nicht verbunden. FALIX_API_KEY muss serverseitig gesetzt werden.' }, { status: 503 });
   try {
     const b = await req.json();
-    const name = String(b.name || 'Mein Server').trim().slice(0, 40) || 'Mein Server';
-    const slugBase = name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'server';
-    const slug = `${slugBase}-${Math.random().toString(36).slice(2, 7)}`;
-    const port = await nextPort();
-    const seed = b.seed === undefined || b.seed === '' ? null : String(b.seed);
+    const name = String(b.name || 'Mein Server').trim().slice(0, 20) || 'Mein Server';
+    if (!/^[A-Za-z0-9 _-]{3,20}$/.test(name)) return NextResponse.json({ error: 'Servername muss 3-20 Zeichen haben.' }, { status: 400 });
+    const domain = `${name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'server'}-${Math.random().toString(36).slice(2, 6)}`;
+    const remote = await falix('/servers', { method: 'POST', headers: { 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify({ name, domain, init: falixCreateInit(b) }) });
+    const providerId = String(remote?.id ?? remote?.server_id ?? remote?.identifier ?? '');
+    if (!providerId) return NextResponse.json({ error: 'Hosting-Provider hat keine Server-ID zurückgegeben.' }, { status: 502 });
     const server = await db.server.create({
       data: {
-        ownerId: id,
-        name,
-        slug,
-        version: String(b.version || '1.21.8'),
-        type: String(b.type || 'VANILLA'),
-        ramMb: Math.min(Math.max(Number(b.ramMb || 2048), 1024), 8192),
-        port,
-        motd: String(b.motd || 'A Minecraft Server').slice(0, 120),
+        ownerId, name, slug: String(remote?.domain ?? domain), provider: 'falix', providerId,
+        version: String(b.version || '1.21.8'), type: String(b.type || 'PAPER'),
+        ramMb: Math.min(Math.max(Number(b.ramMb || 2048), 1024), 8192), port: Number(remote?.port || 0),
+        status: String(remote?.status || 'installing'), motd: String(b.motd || 'A Minecraft Server').slice(0, 120),
         maxPlayers: Math.min(Math.max(Number(b.maxPlayers || 20), 1), 100),
-        gamemode: ['survival', 'creative', 'adventure', 'spectator'].includes(b.gamemode) ? b.gamemode : 'survival',
-        difficulty: ['peaceful', 'easy', 'normal', 'hard'].includes(b.difficulty) ? b.difficulty : 'normal',
-        hardcore: Boolean(b.hardcore),
-        pvp: b.pvp === undefined ? true : Boolean(b.pvp),
-        onlineMode: b.onlineMode === undefined ? true : Boolean(b.onlineMode),
-        whitelist: Boolean(b.whitelist),
-        worlds: { create: { name: 'world', seed, gamemode: b.gamemode || 'survival', difficulty: b.difficulty || 'normal' } }
-      },
-      include: { worlds: true }
+        gamemode: ['survival','creative','adventure','spectator'].includes(b.gamemode) ? b.gamemode : 'survival',
+        difficulty: ['peaceful','easy','normal','hard'].includes(b.difficulty) ? b.difficulty : 'normal',
+        hardcore: Boolean(b.hardcore), pvp: b.pvp === undefined ? true : Boolean(b.pvp),
+        onlineMode: b.onlineMode === undefined ? true : Boolean(b.onlineMode), whitelist: Boolean(b.whitelist),
+        worlds: { create: { name: 'world', seed: b.seed ? String(b.seed) : null, gamemode: b.gamemode || 'survival', difficulty: b.difficulty || 'normal' } }
+      }, include: { worlds: true }
     });
-    return NextResponse.json(server);
-  } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not create server' }, { status: 500 });
-  }
+    return NextResponse.json(server, { status: 201 });
+  } catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not create hosted server' }, { status: 502 }); }
 }
