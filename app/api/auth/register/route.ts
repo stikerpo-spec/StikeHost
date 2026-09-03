@@ -1,0 +1,3 @@
+import {NextResponse} from 'next/server';import bcrypt from 'bcryptjs';import {z} from 'zod';import {db} from '../../../../lib/db';import {setSession} from '../../../../lib/auth';
+const S=z.object({name:z.string().min(2),email:z.string().email(),password:z.string().min(6)});
+export async function POST(req:Request){const p=S.safeParse(await req.json());if(!p.success)return NextResponse.json({error:'Ungültige Eingaben'},{status:400});if(await db.user.findUnique({where:{email:p.data.email}}))return NextResponse.json({error:'E-Mail ist bereits registriert'},{status:409});const u=await db.user.create({data:{name:p.data.name,email:p.data.email,passwordHash:await bcrypt.hash(p.data.password,12)}});await setSession(u.id);return NextResponse.json({ok:true})}

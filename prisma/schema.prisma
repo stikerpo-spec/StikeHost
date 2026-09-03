@@ -1,0 +1,5 @@
+datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+generator client { provider = "prisma-client-js" }
+model User { id String @id @default(cuid()); email String @unique; passwordHash String; name String; createdAt DateTime @default(now()); servers Server[] }
+model Server { id String @id @default(cuid()); ownerId String; owner User @relation(fields:[ownerId], references:[id], onDelete:Cascade); name String; slug String @unique; version String; ramMb Int @default(2048); port Int @default(25565); status String @default("stopped"); motd String @default("A Minecraft Server"); createdAt DateTime @default(now()); worlds World[] }
+model World { id String @id @default(cuid()); serverId String; server Server @relation(fields:[serverId], references:[id], onDelete:Cascade); name String; seed String?; gamemode String @default("survival"); difficulty String @default("normal"); createdAt DateTime @default(now()) }

@@ -1,0 +1,28 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: stikehost
+      POSTGRES_USER: stikehost
+      POSTGRES_PASSWORD: change-me-now
+    volumes: [stikehost-db:/var/lib/postgresql/data]
+  web:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://stikehost:change-me-now@db:5432/stikehost
+      JWT_SECRET: change-this-to-a-long-random-value
+      WORKER_URL: http://worker:4000
+      WORKER_SECRET: worker-secret-change-me
+    depends_on: [db, worker]
+    ports: ["3000:3000"]
+  worker:
+    build: ./worker
+    environment:
+      WORKER_SECRET: worker-secret-change-me
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - stikehost-servers:/srv/stikehost
+    ports: ["4000:4000"]
+volumes:
+  stikehost-db:
+  stikehost-servers:
